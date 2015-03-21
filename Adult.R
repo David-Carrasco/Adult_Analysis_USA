@@ -25,7 +25,6 @@ colnames(adults) <- columnas
 
 len.sample <- nrow(adults)
 
-
 ########################################
 #####   DECLARACION  FUNCIONES    ######
 ########################################
@@ -38,7 +37,7 @@ calculate.max.whisker <- function(variable){
 }
 
 calculate.min.whisker <- function(variable){
-  # Devuelve el max.whisker de la variable pasada como parametro
+  # Devuelve el min.whisker de la variable pasada como parametro
   quantiles <- summary(variable)
   RIC <- quantiles[['3rd Qu.']] - quantiles[['1st Qu.']]
   return(quantiles[['1st Qu.']] - 1.5*RIC)
@@ -49,7 +48,7 @@ calculate.min.whisker <- function(variable){
 ####    ANALISIS DE LAS VARIABLES   #####
 #########################################
 
-# Vamos a analizar las siguientes variables del dataset:
+# Vamos a describir las variables del dataset:
   # age --> Variable discreta numerica 
   # education_num --> Variable discreta categorica
   # race --> Variable cualitativa  
@@ -105,7 +104,6 @@ lillie.test(adults$age)
 # Para un nivel de signifacion alpha = 0.05/0.01, 
 # rechazamos H0 ya que p-value < 0.05/0.01
 
-
 ########################## EDUCATION_NUM ############################
 
 # No hay que limpiar la variable ya que no hay valores NA
@@ -133,11 +131,26 @@ summary(adults$education_num)
 mlv(adults$education_num)
 
 # Visualizacion de los valores una vez filtrados
+hist(adults$education_num)
+
+# No obtenemos mucha informacion, con lo cual veamos como se distribuyen
+# en un sector circular de forma que 9, 10 y 13 son los mas frecuentes
 pie(table(adults$education_num))
 
 # Varianza y desviacion estandar
 var(adults$education_num)
 sd(adults$education_num)
+
+########################## RACE ############################
+
+# vemos que predomina "White" con respecto a los demás valores
+pie(table(adults$race))
+
+# En concreto, "White" agrupa un 81% del total de los datos
+table(adults$race)/len.sample
+
+
+
 
 
 
