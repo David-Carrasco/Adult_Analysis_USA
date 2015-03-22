@@ -10,13 +10,15 @@ library(modeest)
 library(prettyR)
 library(e1071)
 library(nortest)
+library(plyr)
 
 # Limpieza workspace
 rm(list = ls(all = TRUE))
 
 # Carga de datos
 url.data <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data'
-adults <- read.csv(url.data, header = FALSE)
+adults0 <- read.csv(url.data, header = FALSE, strip.white = TRUE)
+adults <- adults0
 
 # Renombramos columnas
 columnas <- c('age', 'workclass', 'fnlwgt', 'education', 'education_num', 'marital_status',
@@ -37,7 +39,7 @@ sapply(adults, function(x){any(is.na(x))})
 sapply(adults, unique)
 
 #Filtramos el dataframe y los levels en base a la condicion anterior
-adults <- adults[apply(adults, MARGIN = 1, function(row) {all(row != ' ?')}),]
+adults <- adults[apply(adults, MARGIN = 1, function(row) {all(row != '?')}),]
 adults[, columnas] <- droplevels(adults[, columnas])
 
 len.sample <- nrow(adults)
@@ -58,6 +60,17 @@ calculate.min.whisker <- function(variable){
   quantiles <- summary(variable)
   RIC <- quantiles[['3rd Qu.']] - quantiles[['1st Qu.']]
   return(quantiles[['1st Qu.']] - 1.5*RIC)
+}
+
+cambiar_factors <- function(dataframe){
+  # Devuelve un dataframe con sus factors mapeados a numeros
+  aux <- sapply(dataframe, function(col_factor){
+                                    if (is.factor(col_factor)){
+                                        mapvalues(col_factor,
+                                                  from = as.character(levels(col_factor)), 
+                                                  to = as.character(1:length(levels(col_factor))))}
+                                    return(col_factor)})
+  return(as.data.frame(aux))
 }
 
 
@@ -121,17 +134,6 @@ hist(adults$age, breaks = 5)
 var(adults$age)
 sd(adults$age)
 
-# Plot funcion de densidad
-plot(density(adults$age), col="red")
-
-# LLevamos a cabo el test de Normalidad de Lilliefors (Kolmogorov-Smirnov) 
-# H0 = "La distribución se aproxima a una normal" 
-# ya que en la funcion de densidad apreciamos cierta normalidad
-lillie.test(adults$age)
-
-# Para un nivel de signifacion alpha = 0.05/0.01, 
-# rechazamos H0 ya que p-value < 0.05/0.01
-
 
 ########################## FNLWGT ############################
 
@@ -171,15 +173,6 @@ hist(adults$fnlwgt)
 var(adults$fnlwgt)
 sd(adults$fnlwgt)
 
-# Plot funcion de densidad
-plot(density(adults$fnlwgt), col="red")
-
-# Vamos a inferir si nuestra muestra puede modelarse como una distribución Normal en vista
-# a su función de densidad con el test de Lilliefors (Kolmogorov-Smirnov)
-lillie.test(adults$fnlwgt)   
-
-# Para un nivel de signifacion alpha = 0.05/0.01, 
-# rechazamos Hipotesis de Normalidad ya que p-value < 0.05/0.01
 
 ########################## EDUCATION_NUM ############################
 
@@ -399,12 +392,101 @@ table(adults$native_country)/nrow(adults) * 100
 
 
 #########################################
+###########    INFERENCIA    ############
+#########################################
+
+################### AGE ##############################
+
+# Plot funcion de densidad
+plot(density(adults$age), col="red")
+
+# Vamos a inferir si nuestra muestra puede modelarse como una distribución Normal en vista
+# a su función de densidad con el test de Lilliefors (Kolmogorov-Smirnov)
+# H0 = "La distribución se aproxima a una normal" 
+# ya que en la funcion de densidad apreciamos cierta normalidad
+lillie.test(adults$age)
+
+# Para un nivel de signifacion alpha = 0.05/0.01, 
+# rechazamos Hipotesis de Normalidad ya que p-value < 0.05/0.01
+
+
+################### FNLWGT ##############################
+
+# Plot funcion de densidad
+plot(density(adults$fnlwgt), col="red")
+
+# Vamos a inferir si nuestra muestra puede modelarse como una distribución Normal en vista
+# a su función de densidad con el test de Lilliefors (Kolmogorov-Smirnov)
+# H0 = "La distribución se aproxima a una normal" 
+# ya que en la funcion de densidad apreciamos cierta normalidad
+lillie.test(adults$fnlwgt)   
+
+# Para un nivel de signifacion alpha = 0.05/0.01, 
+# rechazamos Hipotesis de Normalidad ya que p-value < 0.05/0.01
+
+#########################################
+#############  CONTRASTES   #############
+#########################################
+
+# Contraste de independencia entre fnlgwt y age
+# ya que acorde a la documentación, en fnlgwt se utiliza age para calcular la feature
+
+contingencia1 <- xtabs(~ fnlwgt + age, data = adults)
+chisq.test(contingencia1, correct = FALSE)
+
+# Para H0 = fnlwgt y age son independientes
+# p-value < 0.05/0.01 por tanto, rechazamos H0 de forma que
+# fnlwgt y age no son independientes (pero no podemos inferir que son dependientes)
+
+# Contraste de independencia entre race y age
+
+contingencia2 <- xtabs(~ race + age, data = adults)
+chisq.test(contingencia2, correct = FALSE)
+
+# Para H0 = occupation y sex son independientes
+# p-value = 0.1667 > 0.05/0.01 por tanto, aceptamos H0 de forma que
+# race y age son independientes con un 99% de confianza
+
+#########################################
 #######    MODELO DE REGRESION   ########
 #########################################
 
+# Vamos a intentar predecir prediction_salary en base a las features de entrada
+# mediante una regresion logistica:
+#     0 --> Salario <= 50k
+#     1 --> Salario > 50k
+adults_regresion <- adults
 
+# Para ello reemplazamos los factores en variables categoricas numericas 
+# para poder ver las correlaciones
+adults_regresion <- cambiar_factors(adults_regresion)
 
+# Pasamos el valor a predecir (predict-salary) a valores binomiales (0 y 1) 
+# para la regresion logistica posterior
+adults_regresion$prediction_salary <- sapply(adults_regresion$prediction_salary, 
+                                             function(value){return(ifelse(value==1,0,1))})
 
+# Matriz de correlacion
+cor(adults_regresion)
 
+# No hay relaciones 1 a 1 con prediction-salary ya que la correlacion mas alta
+# es de 24.9% con education_num
 
+# Vemos ahora un modelo de regresion logistica
+logistic_adults <- glm(prediction_salary ~ ., data = adults_regresion, family = binomial)
+summary(logistic_adults)
+
+# Viendo los residuos, quitando 6 outliers que se dispersan bastante, 
+# los demas los predice con una tasa aceptable de errores
+plot(logistic_adults$residuals)
+abline(h=0)
+
+# Comprobamos como han ido las predicciones
+prediction_adults <- predict(logistic_adults, type = 'response')
+qqplot(adults_regresion$prediction_salary, prediction_adults)
+abline(h=0.5)
+
+# Vemos que predicciones bajas alrededor de 0.4 de probabilidad, se estan identificando como salario >=50k
+# Tendriamos que mejorar en la omisión de resultados ya que estas hipótesis que son verdaderas
+# se predicen como falsas por la baja probabilidad p de la prediccion
 
